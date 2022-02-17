@@ -3,6 +3,9 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 
+URL = 'https://boxrec.com'
+
+
 def get_file():
     with open(r'C:\data\data\432984', 'r', encoding='utf-8') as file:
         text = file.read()
@@ -68,15 +71,13 @@ def get_profile(text):
         'nationality': nationality
         }
 
-def get_records(text):
+def get_records(text, name):
     soup = BeautifulSoup(text, 'lxml')
     raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all('td')
 
 
     keys = ['date', 'kilos', 'rating', 'opponent', 'kilos', 'rating', ['w', 'l', 'd'], 'last 6', 'result', 'rounds']
     
-
-
     values = []
     for item in raw_data:
         values.append(item.text.replace('\n', '').strip())
@@ -99,24 +100,41 @@ def get_records(text):
 
     opponent_name = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(class_='personLink', href=re.compile(r'/en/proboxer/')).text
     opponent_link = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(class_='personLink', href=re.compile(r'/en/proboxer/')).get('href')
-    opponent = {'name': opponent_name, 'link': f'https://boxrec.com/{opponent_link}'}
-    #judges = values.pop()
+    opponent = {'name': opponent_name, 'link': f'{URL}{opponent_link}'}
 
-    print(values)
+    list_judges = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all(href=re.compile(r'/en/judge/'))
+
+    judges = {}
+    for item in list_judges:
+        score = re.search(r'([0-9]+)-([0-9]+)', item.next.next.strip())
+        judges[f'{item.text}'] = {'judges_link': f'{URL}{item.get("href")}', 'score': {name: int(score.group(1)), opponent_name: int(score.group(2))} }
+
+
+    referee_name = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(href=re.compile(r'/en/referee/')).text
+    referre_link = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(href=re.compile(r'/en/referee/')).get('href')
+    referee = {'name': referee_name, 'referee_link': f'{URL}{referre_link}'}
+
+    referee_and_judges = {'referee': referee, 'judges': judges}
+
+    print(list_judges)
+    print(referee)
+    print(referee_and_judges)
+    print('\n')
+    print(list_judges)
+
 
     with open('file', 'w', encoding='UTF-8') as file:
         file.write(str(raw_data))
-
 
     records = {
         'date': date,
         'kilos': kilos,
         'rating': rating,
         'result': result,
-        'opponent': opponent
+        'opponent': opponent,
+        'referee_and_judges': referee_and_judges
     }
 
-    
     return records
 
 
@@ -124,10 +142,9 @@ def get_records(text):
 def main():
     text = get_file()
     profile = get_profile(text)
-    records = get_records(text)
+    records = get_records(text, name=profile['name'])
     print('\n')
     print(records)
-
 
 
 if __name__=='__main__':
