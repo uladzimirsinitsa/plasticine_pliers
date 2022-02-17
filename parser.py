@@ -7,7 +7,7 @@ URL = 'https://boxrec.com'
 
 
 def get_file():
-    with open(r'C:\data\data\9625', 'r', encoding='utf-8') as file:
+    with open(r'C:\data\data\11396', 'r', encoding='utf-8') as file:
         text = file.read()
     return text
 
@@ -44,30 +44,33 @@ def get_profile(soup) -> tuple[str, dict]:
         for item in list_obj_beautifulsoup
         if item
     }
+
     name = soup.find_all('h1')[1].text
+
     return name, {
         'name': name,
-        'age': {},
+        'age': None,
         'height': int(dict_obj_beautifulsoup['height'][-6:-2]),
         'reach': int(dict_obj_beautifulsoup['reach'][-6:-2]),
-        'residence': dict_obj_beautifulsoup['residence'],
-        'birth place': dict_obj_beautifulsoup['birth place'],
-        'alias': dict_obj_beautifulsoup['alias'],
-        'stance': dict_obj_beautifulsoup['stance'] or {},
-        'nationality': dict_obj_beautifulsoup['nationality']
-        }
-
-def get_opponent_data(soup):
-    opponent_name = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(class_='personLink', href=re.compile(r'/en/proboxer/')).text
-    opponent_link = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(class_='personLink', href=re.compile(r'/en/proboxer/')).get('href')
-    return opponent_name, {'opponent': {'name': opponent_name, 'link': f'{URL}{opponent_link}'}}
+        'residence': dict_obj_beautifulsoup.get('residence'),
+        'birth place': dict_obj_beautifulsoup.get('birth place'),
+        'alias': dict_obj_beautifulsoup.get('alias'),
+        'stance': dict_obj_beautifulsoup.get('stance'),
+        'nationality': dict_obj_beautifulsoup.get('nationality'),
+    }
 
 
-def get_fight_data(soup, name):
-    obj_beautifulsoup = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all('td')
 
+
+def get_opponent_data(item):
+    opponent_name = item.find(class_='personLink', href=re.compile(r'/en/proboxer/')).text
+    link = item.find(class_='personLink', href=re.compile(r'/en/proboxer/')).get('href')
+    return opponent_name, {'name': opponent_name, 'link': f'{URL}{link}'}
+
+
+def get_fight_data(soup, item):
+    obj_beautifulsoup = item.find_all('td')
     values = [item.text.replace('\n', '').strip() for item in obj_beautifulsoup]
-    print(values[11])
     kilos, rating = values[2:4]
 
     result =soup.find(class_='boutResult bgW').text
@@ -78,19 +81,19 @@ def get_fight_data(soup, name):
     elif result=='D':
         result = 0.5
     else:
-        result = {}
+        result = None
 
-    fight_data = {
-        'date': datetime.strptime(soup.find(href=re.compile(r'date=')).text, '%Y-%m-%d'),
+    return {
+        'date': datetime.strptime(
+            soup.find(href=re.compile(r'date=')).text, '%Y-%m-%d'
+        ),
         'kilos': kilos,
         'rating': rating,
-        'rounds': 'rounds',
+        'rounds': values[11],
         'result': result,
     }
-    return fight_data
 
 def create_dict_referee_and_judges(soup, name, opponent_name):
-    print(opponent_name)
     list_judges = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all(href=re.compile(r'/en/judge/'))
     judges = {}
     for item in list_judges:
@@ -106,15 +109,45 @@ def create_dict_referee_and_judges(soup, name, opponent_name):
         }
 
 
+def get_parse_all_fights(soup):
+    dict_all_fights = {}
+    raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')
+
+    for index, item in enumerate(raw_data, start=1):
+
+        fight_data = get_fight_data(soup, item)
+        _, opponent = get_opponent_data(item)
+        dict_all_fights[index] = {'opponent': opponent, 'data': fight_data}
+
+
+
+
+    return dict_all_fights
+
+
+
 def main():
     text = get_file()
+
     soup = get_soup(text)
+
     statistics = get_all_fights_statistics(soup)
+
     career_length = get_date_career(soup)
+
     name, profile = get_profile(soup)
-    fights_records = get_fight_data(soup, name)
+    print(profile)
+
+    #fights_records = get_fight_data(soup, item)
+
     opponent_name, opponent_data = get_opponent_data(soup)
+    
+
     referee_and_judges = create_dict_referee_and_judges(soup, name, opponent_name)
+
+    all_fights = get_parse_all_fights(soup)
+    #print(all_fights)
+
 
 
 if __name__=='__main__':
