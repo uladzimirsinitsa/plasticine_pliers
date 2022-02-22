@@ -1,9 +1,10 @@
 
+import re
 from datetime import datetime
 from bs4 import BeautifulSoup
-import re
 
-URL = 'https://boxrec.com'
+
+URL = "https://boxrec.com"
 
 
 def get_file():
@@ -48,18 +49,16 @@ def get_profile(soup) -> tuple[str, dict]:
     name = soup.find_all('h1')[1].text
 
     return name, {
-        'name': name,
-        'age': None,
-        'height': int(dict_obj_beautifulsoup['height'][-6:-2]),
-        'reach': int(dict_obj_beautifulsoup['reach'][-6:-2]),
-        'residence': dict_obj_beautifulsoup.get('residence'),
-        'birth place': dict_obj_beautifulsoup.get('birth place'),
-        'alias': dict_obj_beautifulsoup.get('alias'),
-        'stance': dict_obj_beautifulsoup.get('stance'),
-        'nationality': dict_obj_beautifulsoup.get('nationality'),
+        "name": name,
+        "age": None,
+        "height": int(dict_obj_beautifulsoup['height'][-6:-2]),
+        "reach": int(dict_obj_beautifulsoup['reach'][-6:-2]),
+        "residence": dict_obj_beautifulsoup.get('residence'),
+        "birth place": dict_obj_beautifulsoup.get('birth place'),
+        "alias": dict_obj_beautifulsoup.get('alias'),
+        "stance": dict_obj_beautifulsoup.get('stance'),
+        "nationality": dict_obj_beautifulsoup.get('nationality'),
     }
-
-
 
 
 def get_opponent_data(item):
@@ -84,14 +83,15 @@ def get_fight_data(soup, item):
         result = None
 
     return {
-        'date': datetime.strptime(
+        "date": datetime.strptime(
             soup.find(href=re.compile(r'date=')).text, '%Y-%m-%d'
         ),
-        'kilos': kilos,
-        'rating': rating,
-        'rounds': values[11],
-        'result': result,
+        "kilos": kilos,
+        "rating": rating,
+        "rounds": values[11],
+        "result": result,
     }
+
 
 def create_dict_referee_and_judges(soup, name, opponent_name):
     list_judges = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all(href=re.compile(r'/en/judge/'))
@@ -104,8 +104,8 @@ def create_dict_referee_and_judges(soup, name, opponent_name):
     referee = {'name': referee_name, 'referee_link': f'{URL}{referre_link}'}
 
     return {
-        'referee': referee,
-        'judges': judges
+        "referee": referee,
+        "judges": judges
         }
 
 
@@ -114,40 +114,24 @@ def get_parse_all_fights(soup):
     raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')
 
     for index, item in enumerate(raw_data, start=1):
-
         fight_data = get_fight_data(soup, item)
         _, opponent = get_opponent_data(item)
         dict_all_fights[index] = {'opponent': opponent, 'data': fight_data}
 
-
-
-
+    print(dict_all_fights)
     return dict_all_fights
-
 
 
 def main():
     text = get_file()
-
     soup = get_soup(text)
-
     statistics = get_all_fights_statistics(soup)
-
     career_length = get_date_career(soup)
-
     name, profile = get_profile(soup)
-    print(profile)
-
     #fights_records = get_fight_data(soup, item)
-
     opponent_name, opponent_data = get_opponent_data(soup)
-    
-
     referee_and_judges = create_dict_referee_and_judges(soup, name, opponent_name)
-
     all_fights = get_parse_all_fights(soup)
-    #print(all_fights)
-
 
 
 if __name__=='__main__':
