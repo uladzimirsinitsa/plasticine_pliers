@@ -8,7 +8,7 @@ URL = "https://boxrec.com"
 
 
 def get_file():
-    with open(r'C:\data\data\11396', 'r', encoding='utf-8') as file:
+    with open(r'C:\data\data\9625', 'r', encoding='utf-8') as file:
         text = file.read()
     return text
 
@@ -109,17 +109,20 @@ def create_dict_referee_and_judges(soup, name, opponent_name):
         }
 
 
-def get_parse_all_fights(soup):
+def get_parse_all_fights(soup, profile):
     dict_all_fights = {}
+    record = {}
     raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')
+    number = soup.find(rel='canonical').get('href')[31:]
 
     for index, item in enumerate(raw_data, start=1):
         fight_data = get_fight_data(soup, item)
         _, opponent = get_opponent_data(item)
         dict_all_fights[index] = {'opponent': opponent, 'data': fight_data}
+        record['number'] = {'profile': profile, 'fights': dict_all_fights}
 
-    print(dict_all_fights)
-    return dict_all_fights
+    print(record)
+    return record
 
 
 def main():
@@ -131,7 +134,7 @@ def main():
     #fights_records = get_fight_data(soup, item)
     opponent_name, opponent_data = get_opponent_data(soup)
     referee_and_judges = create_dict_referee_and_judges(soup, name, opponent_name)
-    all_fights = get_parse_all_fights(soup)
+    record = get_parse_all_fights(soup, profile)
 
 
 if __name__=='__main__':
