@@ -3,3 +3,4 @@ env
 clients_secret.json
 file
 data.json
+cookies.pkl

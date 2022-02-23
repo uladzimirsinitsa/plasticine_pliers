@@ -1,52 +1,81 @@
 
+import os
 import re
+import pickle
+import time
 from datetime import datetime
+from xml.dom.minidom import Element
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 
+load_dotenv()
 
-URL = "https://boxrec.com"
+
+PATH_DRIVER = os.environ['PATH_DRIVER']
+URL = os.environ['URL']
+DOMAIN = os.environ['DOMAIN']
 
 
-def get_file():
+service = Service(PATH_DRIVER)
+driver = webdriver.Firefox(service=service)
+driver.get(URL)
+cookies = pickle.load(open("cookies.pkl", "rb"))
+for cookie in cookies:
+    driver.add_cookie(cookie)
+
+
+def get_file() -> list:
     with open(r'C:\data\data\9625', 'r', encoding='utf-8') as file:
         text = file.read()
     return text
 
 
-def get_soup(text):
-    return BeautifulSoup(text, 'lxml')
+def get_soups(text: list) -> list:
+    soup = BeautifulSoup(text, 'lxml')
+    soups = [soup]
+    number = int(soup.find_all(class_='pagerElement')[-1].text)
+    url = soup.find(rel='canonical').get('href')
+    page_ID = 100
+    while number > 0 and soup.find_all(class_='pagerElement'):
+        driver.get(f'{url}?offset={page_ID}')
+        soups.append(BeautifulSoup(driver.page_source, 'lxml'))
+        number -= 1
+        page_ID += 100
+        time.sleep(2)
+    return soups
 
 
-def get_all_fights_statistics(soup) -> dict[str, int]:
+def get_all_fights_statistics(soups: list) -> dict[str, int]:
     return {
-        'number_fight_win': int(soup.find(class_='bgW').text),
-        'number_fight_loose': int(soup.find(class_='bgL').text),
-        'number_fight_draw': int(soup.find(class_='bgD').text)
+        'number_fight_win': int(soups[0].find(class_='bgW').text),
+        'number_fight_loose': int(soups[0].find(class_='bgL').text),
+        'number_fight_draw': int(soups[0].find(class_='bgD').text)
         }
 
 
-def get_date_career(soup):
-    profile = soup.find(class_='profileTable').find('table', class_='rowTable').find_all('tr')
+def get_date_career(soups: list):
+    profile = soups[0].find(class_='profileTable').find('table', class_='rowTable').find_all('tr')
     data = {}
-    for item in profile[1:]:
-        item = item.find_all('td')
-        data[item[0].text.strip()] = item[1].text.strip()
+    for element in profile[1:]:
+        element = element.find_all('td')
+        data[element[0].text.strip()] = element[1].text.strip()
     return {
         'start': datetime.strptime(data['career'].split('-')[0], '%Y'),
         'end': datetime.strptime(data['career'].split('-')[1], '%Y'),
         }
 
 
-def get_profile(soup) -> tuple[str, dict]:
-    obj_beautifulsoup = soup.find(class_='profileTable').find_all('table')[2].find_all('tr')
-    list_obj_beautifulsoup = [item.find_all('td') for item in obj_beautifulsoup]
+def get_profile(soups: list) -> tuple[str, dict]:
+    obj_beautifulsoup = soups[0].find(class_='profileTable').find_all('table')[2].find_all('tr')
+    list_obj_beautifulsoup = [element.find_all('td') for element in obj_beautifulsoup]
     dict_obj_beautifulsoup = {
-        item[0].text.strip(): item[1].text.strip()
-        for item in list_obj_beautifulsoup
-        if item
+        element[0].text.strip(): element[1].text.strip()
+        for element in list_obj_beautifulsoup
+        if element
     }
-
-    name = soup.find_all('h1')[1].text
+    name = soups[0].find_all('h1')[1].text
 
     return name, {
         "name": name,
@@ -61,15 +90,15 @@ def get_profile(soup) -> tuple[str, dict]:
     }
 
 
-def get_opponent_data(item):
-    opponent_name = item.find(class_='personLink', href=re.compile(r'/en/proboxer/')).text
-    link = item.find(class_='personLink', href=re.compile(r'/en/proboxer/')).get('href')
+def get_opponent_data(element):
+    opponent_name = element.find(class_='personLink', href=re.compile(r'/en/proboxer/')).text
+    link = element.find(class_='personLink', href=re.compile(r'/en/proboxer/')).get('href')
     return opponent_name, {'name': opponent_name, 'link': f'{URL}{link}'}
 
 
-def get_fight_data(soup, item):
-    obj_beautifulsoup = item.find_all('td')
-    values = [item.text.replace('\n', '').strip() for item in obj_beautifulsoup]
+def get_fight_data(soup, element):
+    obj_beautifulsoup = element.find_all('td')
+    values = [element.text.replace('\n', '').strip() for element in obj_beautifulsoup]
     kilos, rating = values[2:4]
 
     result =soup.find(class_='boutResult bgW').text
@@ -96,9 +125,9 @@ def get_fight_data(soup, item):
 def create_dict_referee_and_judges(soup, name, opponent_name):
     list_judges = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find_all(href=re.compile(r'/en/judge/'))
     judges = {}
-    for item in list_judges:
-        score = re.search(r'([0-9]+)-([0-9]+)', item.next.next.strip())
-        judges[f'{item.text}'] = {'judges_link': f'{URL}{item.get("href")}', 'score': {name: int(score.group(1)), opponent_name: int(score.group(2))} }
+    for element in list_judges:
+        score = re.search(r'([0-9]+)-([0-9]+)', element.next.next.strip())
+        judges[f'{element.text}'] = {'judges_link': f'{URL}{element.get("href")}', 'score': {name: int(score.group(1)), opponent_name: int(score.group(2))} }
     referee_name = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(href=re.compile(r'/en/referee/')).text
     referre_link = soup.find(class_='dataTable', align='center').find_all('tbody')[0].find(href=re.compile(r'/en/referee/')).get('href')
     referee = {'name': referee_name, 'referee_link': f'{URL}{referre_link}'}
@@ -109,32 +138,37 @@ def create_dict_referee_and_judges(soup, name, opponent_name):
         }
 
 
-def get_parse_all_fights(soup, profile):
-    dict_all_fights = {}
-    record = {}
-    raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')
-    number = soup.find(rel='canonical').get('href')[31:]
+dict_all_fights = {}
 
-    for index, item in enumerate(raw_data, start=1):
-        fight_data = get_fight_data(soup, item)
-        _, opponent = get_opponent_data(item)
-        dict_all_fights[index] = {'opponent': opponent, 'data': fight_data}
-        record['number'] = {'profile': profile, 'fights': dict_all_fights}
+def get_parse_all_fights(soups):
+    #number = soup.find(rel='canonical').get('href')[31:]
+    index = 1
+    for soup in soups:
+        raw_data = soup.find(class_='dataTable', align='center').find_all('tbody')
+        for element in raw_data:
+            fight_data = get_fight_data(soups[0], element)
+            _, opponent = get_opponent_data(element)
+            dict_all_fights[index] = {'opponent': opponent, 'data': fight_data}
+            index += 1
+    print(dict_all_fights)
+    return dict_all_fights
 
-    print(record)
-    return record
+
+def create_boxer_record():
+    pass
 
 
 def main():
     text = get_file()
-    soup = get_soup(text)
-    statistics = get_all_fights_statistics(soup)
-    career_length = get_date_career(soup)
-    name, profile = get_profile(soup)
+    soup = BeautifulSoup(text, 'lxml')
+    soups = get_soups(text)
+    statistic = get_all_fights_statistics(soups)
+    career_length = get_date_career(soups)
+    name, profile = get_profile(soups)
     #fights_records = get_fight_data(soup, item)
     opponent_name, opponent_data = get_opponent_data(soup)
     referee_and_judges = create_dict_referee_and_judges(soup, name, opponent_name)
-    record = get_parse_all_fights(soup, profile)
+    dict_all_fights = get_parse_all_fights(soups)
 
 
 if __name__=='__main__':
